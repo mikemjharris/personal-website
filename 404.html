@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Not found | Mike Harris' Website</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <link rel="shortcut icon" href="/img/sirrahcol.png">
+    <link href='https://fonts.googleapis.com/css?family=Inconsolata' rel='stylesheet' type='text/css'>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Inconsolata', sans-serif;
+      }
+      body {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+      }
+      .block {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        text-align: center;
+      }
+      .red { background: #ff7373; }
+      .green { background: #dbf970; }
+      .blue { background: #63add0; }
+      .white { background: white; }
+      h1 { font-size: 4rem; }
+      p { font-size: 1.25rem; }
+      a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <div class="block red"><h1>404</h1></div>
+    <div class="block white"><p>This page doesn't exist.</p></div>
+    <div class="block green"><p><a href="/">Back to the home page</a></p></div>
+    <div class="block blue"><p><a href="https://blog.mikemjharris.com">Or read the blog</a></p></div>
+  </body>
+</html>
