@@ -1,0 +1,65 @@
+name: Deploy
+
+# Uploads the site to S3 and clears the CloudFront cache. The bucket and
+# distribution are defined in mikemjharris/infra (terraform/web/sites).
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC login to AWS; no AWS keys are stored in GitHub
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  AWS_ROLE_ARN: arn:aws:iam::702167621683:role/github-deploy-www
+  BUCKET: mikemjharris-www-702167621683
+  DISTRIBUTION_ID: E1HR27O9OKYP4F
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Write version.json
+        run: |
+          cat > version.json <<EOF
+          {
+              "commit": "${GITHUB_SHA}",
+              "branch": "${GITHUB_REF_NAME}",
+              "deploy_date": "$(date -u +%Y-%m-%d_%H-%M-%S)"
+          }
+          EOF
+
+      # dashboard/ and lighthouse/ live in the bucket but not in this repo, so
+      # they're excluded; --delete never removes excluded paths.
+      - name: Upload to S3
+        run: |
+          aws s3 sync . "s3://${BUCKET}/" --delete --no-progress \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --exclude ".gitignore" \
+            --exclude "README.md" \
+            --exclude "bower_components/*" \
+            --exclude "releases.json" \
+            --exclude "lighthouse/*" \
+            --exclude "dashboard/*"
+
+      - name: Clear the CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' --output text
