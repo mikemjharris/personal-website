@@ -1,0 +1,86 @@
+name: Lighthouse
+
+# Monthly Lighthouse reports for www and the blog, published at
+# https://www.mikemjharris.com/lighthouse/ alongside the older ones.
+
+on:
+  schedule:
+    - cron: '0 3 1 * *' # 03:00 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC login to AWS; no AWS keys are stored in GitHub
+
+concurrency:
+  group: lighthouse
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-2
+  AWS_ROLE_ARN: arn:aws:iam::702167621683:role/github-deploy-www
+  BUCKET: mikemjharris-www-702167621683
+  DISTRIBUTION_ID: E1HR27O9OKYP4F
+  LIGHTHOUSE_VERSION: 13.6.0
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: website
+            url: https://www.mikemjharris.com
+          - name: blog
+            url: https://blog.mikemjharris.com
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Run Lighthouse
+        run: |
+          mkdir -p out
+          npx --yes "lighthouse@${LIGHTHOUSE_VERSION}" "${{ matrix.url }}" \
+            --output html --output json \
+            --output-path "out/report-$(date -u +%Y-%m-%d)" \
+            --chrome-flags="--headless=new --no-sandbox" \
+            --quiet
+          # Lighthouse names them report-DATE.report.{html,json}; keep the old names.
+          for f in out/*.report.*; do mv "$f" "${f/.report./.}"; done
+          # The folder's index.html is the latest report.
+          cp out/report-*.html out/index.html
+          ls -l out
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload the report
+        run: aws s3 cp out/ "s3://${BUCKET}/lighthouse/${{ matrix.name }}/" --recursive --no-progress
+
+  index:
+    needs: lighthouse
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Rebuild the reports index
+        run: |
+          lighthouse/build-index.sh "${BUCKET}" > index.html
+          aws s3 cp index.html "s3://${BUCKET}/lighthouse/index.html" --content-type text/html --no-progress
+
+      - name: Clear the CloudFront cache for the reports
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/lighthouse/*" \
+            --query 'Invalidation.Id' --output text
