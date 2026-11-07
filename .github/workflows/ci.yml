@@ -1,0 +1,25 @@
+name: CI
+
+# The required check for pull requests: the site has no build, so this lints
+# the workflows (including their shell scripts) and the Lighthouse index script.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Lint workflows
+        run: docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:1.7.7 -color
+
+      - name: Lint scripts
+        run: shellcheck lighthouse/build-index.sh
